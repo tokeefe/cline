@@ -10,6 +10,8 @@ import {
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
+import { NodeHttpHandler } from "@smithy/node-http-handler"
+import { HttpsProxyAgent } from "https-proxy-agent"
 import { type BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, type ModelInfo } from "@shared/api"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
@@ -310,14 +312,18 @@ export class AwsBedrockHandler implements ApiHandler {
 			}
 		}
 
-		// TODO: Add proxy support for AWS SDK
-		// AWS SDK uses a different architecture than fetch-based SDKs.
-		// To add proxy support, we need to provide a custom requestHandler.
+		const proxyUrl = process.env.HTTPS_PROXY || process.env.https_proxy
+
 		return new BedrockRuntimeClient({
 			userAgentAppId: `cline#${ExtensionRegistryInfo.version}`,
 			region: this.getRegion(),
 			...auth,
 			...(this.options.awsBedrockEndpoint && { endpoint: this.options.awsBedrockEndpoint }),
+			...(proxyUrl && {
+				requestHandler: new NodeHttpHandler({
+					httpsAgent: new HttpsProxyAgent(proxyUrl),
+				}),
+			}),
 		})
 	}
 
